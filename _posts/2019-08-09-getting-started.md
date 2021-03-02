@@ -1,9 +1,10 @@
 ---
-title: Models of Django
-author: Dinesh Prasanth Moluguwan Krishnamoorthy
-date: 2021-03-02 18:32:00 -0500
-categories: [Python, Django]
-tags: [python, django,models]
+title: Getting Started
+author: Cotes Chung
+date: 2019-08-09 20:55:00 +0800
+categories: [Blogging, Tutorial]
+tags: [getting started]
+pin: true
 ---
 
 
