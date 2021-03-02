@@ -1,161 +1,120 @@
 ---
-title: Getting Started
-author: Cotes Chung
-date: 2019-08-09 20:55:00 +0800
-categories: [Blogging, Tutorial]
-tags: [getting started]
-pin: true
+title: Models of Django
+author: Dinesh Prasanth Moluguwan Krishnamoorthy
+date: 2021-03-02 18:32:00 -0500
+categories: [Python, Django]
+tags: [python, django,models]
 ---
 
-## Prerequisites
 
-Follow the [Jekyll Docs](https://jekyllrb.com/docs/installation/) to complete the installation of `Ruby`, `RubyGems`, `Jekyll` and `Bundler`.
+# 数据模型-Models
+## 1.定义models
+每个模型使用python的一个类表示，并且是django.db.models.Model的子类：
+```python
+from django.db import models
+class XXX(models.Model):
+```
+## 2.安装模型
+目录：settings-INSTALLED_APPS
+命令：
+- 验证模型：`python manage.py check`
+- 生成迁移：`python manage.py makemigrations`
+- 执行迁移：`python manage.py migrate`
+- 使用shell测试模型：`python manage.py shell`
 
-## Installation
+## 3.model管理器
+objects是Django模型用于执行数据库查询的对象，一个Django模型至少有一个管理器，同时可以自定义管理器，定制访问数据库的方式。自定义管理器可能处于两方面的原因：添加额外的管理器方法和修改管理器返回的QuerySet。
+- **添加额外的管理器方法**：
+```python
+class BookManager(models.Manager):
+    def title_count(self, keyword):
+       return self.filter(title__icontains=keyword).count()
+class Book(models.Model):
+    title = models.CharField(max_length=100)
+    authors = models.ManyToManyField(Author)
+    publisher = models.ForeignKey(Publisher)
+    publication_date = models.DateField()
+    num_pages = models.IntegerField(blank=True, null=True)
+    objects = BookManager()
 
-There are two ways to get the theme:
-
-- **Install from RubyGems** - Easy to update, isolate irrelevant project files so you can focus on writing.
-- **Fork on GitHub** - Convenient for custom development, but difficult to update, only suitable for web developers.
-
-### Installing the Theme Gem
-
-Add this line to your Jekyll site's `Gemfile`:
-
-```ruby
-gem "jekyll-theme-chirpy"
+    def __str__(self):
+        return self.title
+# 调用
+Book.objects.title_count(keyword)
 ```
 
-And add this line to your Jekyll site's `_config.yml`:
+- **修改管理器返回的QuerySet**：
 
-```yaml
-theme: jekyll-theme-chirpy
+&emsp;&emsp;&emsp;&emsp;注意：Django把它解释的第一个管理器定义为“默认”管理器，之后很多地方只使用那个管理器
+```python
+"""
+Book.objects.all() 返回数据库中的所有图书，而Book.dahl_objects.all() 只返回Roald Dahl 写的书
+"""
+# 首先，定义 Manager 子类
+class DahlBookManager(models.Manager):
+    def get_queryset(self):
+    # 超类 super(class_name, self).def_name(*args, **kwargs)，确保把对象保存到数据库中。如果忘记，默认的行为不会发生，根本不会触及数据库
+       return super(DahlBookManager, self).get_queryset().filter(author='Roald Dahl')
+# 然后，放入 Book 模型
+class Book(models.Model):
+    title = models.CharField(max_length=100)
+    author = models.CharField(max_length=50)
+    # ...
+    objects = models.Manager() # 默认的管理器
+    dahl_objects = DahlBookManager() # 专门查询 Dahl 的管理器
+
+# 调用
+Book.dah1_objects.all()
+Book.dah1_objects.filter()
+Book.dah1_objects.count()
+Book.objects.all()
 ```
+## 4.模型方法
+管理器的作用是执行数据表层的操作，而模型方法处理的是具体的模型实例。包括：
+- **自带模型方法**：
 
-And then execute:
+ *__str__()*：返回对象的 Unicode 表示形式  在交互式控制台或管理后台中显示对象调用的都是这个方法。
 
-```console
-$ bundle
+*get_absolute_url()*：这个方法告诉 Django 如何计算一个对象的 URL。Django 在管理后台和需要生成
+对象的 URL 时调用这个方法。具有唯一标识的 URL 的对象都要定义这个方法。
+
+- **自定义模型方法**：在所设计的模型类中加入自定义函数方法即可
+```python
+import datetime
+class Person(models.Model):
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+    birth_date = models.DateField()
+    def baby_boomer_status(self):
+        # 返回一个人的出生日期与婴儿潮的关系
+        if self.birth_date < datetime.date(1945, 8, 1):
+            return "Pre-boomer"
+        elif self.birth_date < datetime.date(1965, 1, 1):
+            return "Baby boomer"
+        else:
+            return "Post-boomer"
+    def _get_full_name(self):
+        # 返回一个人的全名
+        return '%s %s' % (self.first_name, self.last_name)
+    full_name = property(_get_full_name)
 ```
-
-Finally, copy the required files from the theme's gem (for detailed files, see [starter project][starter]) to your Jekyll site.
-
-> **Hint**: To locate the installed theme’s gem, execute:
->
-> ```console
-> $ bundle info --path jekyll-theme-chirpy
-> ```
-
-Or you can [**use the starter template**][use-starter] to create a Jekyll site to save time copying files from theme's gem. We have prepared everything for you there!
-
-### Fork on GitHub
-
-[Fork **Chirpy**](https://github.com/cotes2020/jekyll-theme-chirpy/fork) on GitHub and then clone your fork to local. (Please note that the default branch code is in development.  If you want the blog to be stable, please switch to the [latest tag](https://github.com/cotes2020/jekyll-theme-chirpy/tags) and start writing.)
-
-Install gem dependencies by:
-
-```console
-$ bundle
+- **覆盖预定义的模型方法**：
+```python
+class Blog(models.Model):
+     name = models.CharField(max_length=100)
+     tagline = models.TextField()
+     def save(self, *args, **kwargs):
+        do_something()
+        super(Blog, self).save(*args, **kwargs) # 调用“真正的”save () 方法
+        do_something_else()
 ```
+## 5.数据操作
+参考：[QuerySet API 参考¶][1]
+- 检索数据：get()、all()...
+- 过滤数据：filter()、exclude()...
+- 排序数据：order_by("字段",) 常常包含在 class Meta:
+- 链式操作：objects.filter(**kwargs).order_by()/delete()/save()...
+- 数据切片：order_by()[0:5] 不支持负数...
 
-And then execute:
 
-```console
-$ bash tools/init.sh
-```
-
-> **Note**: If you don't plan to deploy your site on GitHub Pages, append parameter option `--no-gh` at the end of the above command.
-
-What it does is:
-
-1. Remove some files or directories from your repository:
-    - `.travis.yml`
-    - files under `_posts`
-    - folder `docs`
-
-2. If you use the `--no-gh` option, the directory `.github` will be deleted. Otherwise, setup the GitHub Action workflow by removing extension `.hook` of `.github/workflows/pages-deploy.yml.hook`, and then remove the other files and directories in folder `.github`.
-
-3. Automatically create a commit to save the changes.
-
-## Usage
-
-### Configuration
-
-Update the variables of `_config.yml` as needed. Some of them are typical options:
-
-- `url`
-- `avatar`
-- `timezone`
-- `lang`
-
-### Running Local Server
-
-You may want to preview the site contents before publishing, so just run it by:
-
-```console
-$ bundle exec jekyll s
-```
-
-Or run the site on Docker with the following command:
-
-```terminal
-$ docker run -it --rm \
-    --volume="$PWD:/srv/jekyll" \
-    -p 4000:4000 jekyll/jekyll \
-    jekyll serve
-```
-
-Open a browser and visit to _<http://localhost:4000>_.
-
-### Deployment
-
-Before the deployment begins, checkout the file `_config.yml` and make sure the `url` is configured correctly. Furthermore, if you prefer the [**project site**](https://help.github.com/en/github/working-with-github-pages/about-github-pages#types-of-github-pages-sites) and don't use a custom domain, or you want to visit your website with a base url on a web server other than **GitHub Pages**, remember to change the `baseurl` to your project name that starting with a slash, e.g, `/project-name`.
-
-Now you can choose ONE of the following methods to deploy your Jekyll site.
-
-#### Deploy on GitHub Pages
-
-For security reasons, GitHub Pages build runs on `safe` mode, which restricts us from using plugins to generate additional page files. Therefore, we can use **GitHub Actions** to build the site, store the built site files on a new branch, and use that branch as the source of the GH Pages service.
-
-Quickly check the files needed for GitHub Actions build:
-
-- Ensure your Jekyll site has the file `.github/workflows/pages-deploy.yml`. Otherwise, create a new one and fill in the contents of the [workflow file][workflow], and the value of the `on.push.branches` should be the same as your repo's default branch name.
-- Ensuer your Jekyll site has file `tools/test.sh` and `tools/deploy.sh`. Otherwise, copy them from this repo to your Jekyll site.
-
-And then rename your repoistory to `<GH-USERNAME>.github.io` on GitHub.
-
-Now publish your Jekyll site by:
-
-1. Push any commit to remote to trigger the GitHub Actions workflow. Once the build is complete and successful, a new remote branch named `gh-pages` will appear to store the built site files.
-
-2. Browse to your repo's landing page on GitHub and select the branch `gh-pages` as the [publishing source](https://docs.github.com/en/github/working-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) throught _Settings_ → _Options_ → _GitHub Pages_:
-
-    ![gh-pages-sources](https://cdn.jsdelivr.net/gh/cotes2020/chirpy-images/posts/20190809/gh-pages-sources.png)
-
-3. Visit your website at the address indicated by GitHub.
-
-#### Deploy on Other Platforms
-
-On platforms other than GitHub, we cannot enjoy the convenience of **GitHub Actions**. Therefore, we should build the site locally (or on some other 3rd-party CI platform) and then put the site files on the server.
-
-Go to the root of the source project, build your site by:
-
-```console
-$ JEKYLL_ENV=production bundle exec jekyll b
-```
-
-Or build the site with Docker by:
-
-```terminal
-$ docker run -it --rm \
-    --env JEKYLL_ENV=production \
-    --volume="$PWD:/srv/jekyll" \
-    jekyll/jekyll \
-    jekyll build
-```
-
-Unless you specified the output path, the generated site files will be placed in folder `_site` of the project's root directory. Now you should upload those files to your web server.
-
-[starter]: https://github.com/cotes2020/chirpy-starter
-[use-starter]: https://github.com/cotes2020/chirpy-starter/generate
-[workflow]: https://github.com/cotes2020/jekyll-theme-chirpy/blob/master/.github/workflows/pages-deploy.yml.hook
+  [1]: https://docs.djangoproject.com/zh-hans/3.1/ref/models/querysets/#
